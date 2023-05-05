@@ -8,9 +8,14 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 use ssh2::Session;
 use tokio::task;
+use tokio::sync::Semaphore;
 
 #[tokio::main]
 async fn main() {
+    let config: Config = load_config();
+    let m = MultiProgress::new();
+    let max_concurrent_tasks = 5; // You can adjust this value based on your system's capabilities
+    let semaphore = Arc::new(Semaphore::new(max_concurrent_tasks));
     let config: Config = load_config();
     let m = MultiProgress::new();
     let progress_bars: Vec<ProgressBar> = config.servers.iter().map(|_| {
@@ -24,17 +29,19 @@ async fn main() {
     }).collect();
 
     let tasks: Vec<_> = config.servers.iter().zip(progress_bars.iter()).map(|(server, pb)| {
-        let user = config.user.clone();
-        let reference_server = config.reference_server.clone();
-        let server = server.clone();
-        let pb = pb.clone();
-        task::spawn(async move {
-            pb.set_message(format!("Connecting to: {}", server));
-            pb.inc(1);
-            reconcile_packages(&user, &server, &reference_server, &pb).await;
-            pb.finish_with_message(format!("Done: {}", server));
-        })
-    }).collect();
+      let user = config.user.clone();
+      let reference_server = config.reference_server.clone();
+      let server = server.clone();
+      let pb = pb.clone();
+      let permit = Arc::clone(&semaphore).acquire_owned().await;
+      task::spawn(async move {
+          pb.set_message(format!("Connecting to: {}", server));
+          pb.inc(1);
+          reconcile_packages(&user, &server, &reference_server, &pb).await;
+          pb.finish_with_message(format!("Done: {}", server));
+          drop(permit);
+      })
+  }).collect();
 
     m.join().unwrap();
 
