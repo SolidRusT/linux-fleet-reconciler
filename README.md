@@ -78,6 +78,10 @@ Package Reconciler is a Rust utility that helps you synchronize installed packag
 
 3. Once all tasks are complete, review the output to ensure that all packages have been successfully installed.
 
+## Contributing
+
+We welcome contributions from the community! If you'd like to contribute to Package Reconciler, please read our [contributing guide](CONTRIBUTING.md) for information on how to get started.
+
 ## License
 
 This project is licensed under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html).
