@@ -3,6 +3,7 @@
 mod config;
 
 use config::{Config, load_config};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::io::prelude::*;
 use std::net::TcpStream;
 use ssh2::Session;
@@ -11,34 +12,56 @@ use tokio::task;
 #[tokio::main]
 async fn main() {
     let config: Config = load_config();
-    let tasks: Vec<_> = config.servers.iter().map(|server| {
+    let m = MultiProgress::new();
+    let progress_bars: Vec<ProgressBar> = config.servers.iter().map(|_| {
+        let pb = m.add(ProgressBar::new(3));
+        pb.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {msg}")
+                .progress_chars("#>-"),
+        );
+        pb
+    }).collect();
+
+    let tasks: Vec<_> = config.servers.iter().zip(progress_bars.iter()).map(|(server, pb)| {
         let user = config.user.clone();
         let reference_server = config.reference_server.clone();
+        let server = server.clone();
+        let pb = pb.clone();
         task::spawn(async move {
-            reconcile_packages(&user, server, &reference_server).await
+            pb.set_message(format!("Connecting to: {}", server));
+            pb.inc(1);
+            reconcile_packages(&user, &server, &reference_server, &pb).await;
+            pb.finish_with_message(format!("Done: {}", server));
         })
     }).collect();
+
+    m.join().unwrap();
 
     for task in tasks {
         task.await.unwrap();
     }
 }
 
-async fn reconcile_packages(user: &str, server: &str, reference_server: &str) {
-    let reference_packages = get_installed_packages(user, reference_server);
-    let server_packages = get_installed_packages(user, server);
+async fn reconcile_packages(user: &str, server: &str, reference_server: &str, pb: &ProgressBar) {
+  let reference_packages = get_installed_packages(user, reference_server);
+  let server_packages = get_installed_packages(user, server);
 
-    let missing_packages: Vec<String> = reference_packages
-        .iter()
-        .filter(|pkg| !server_packages.contains(pkg))
-        .cloned()
-        .collect();
+  pb.set_message(format!("Comparing packages for: {}", server));
+  pb.inc(1);
+  let missing_packages: Vec<String> = reference_packages
+      .iter()
+      .filter(|pkg| !server_packages.contains(pkg))
+      .cloned()
+      .collect();
 
-    if missing_packages.is_empty() {
-        println!("No packages to install on server: {}", server);
-    } else {
-        install_packages(user, server, &missing_packages);
-    }
+  if missing_packages.is_empty() {
+      println!("No packages to install on server: {}", server);
+  } else {
+      pb.set_message(format!("Installing packages on: {}", server));
+      pb.inc(1);
+      install_packages(user, server, &missing_packages);
+  }
 }
 
 fn get_installed_packages(user: &str, server: &str) -> Vec<String> {
