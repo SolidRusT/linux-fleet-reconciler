@@ -3,9 +3,10 @@ use toml::de::Deserializer;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    pub user: String,
-    pub servers: Vec<String>,
-    pub reference_server: String,
+  pub user: String,
+  pub servers: Vec<String>,
+  pub reference_server: String,
+  pub max_concurrent_tasks: usize,
 }
 
 pub fn load_config() -> Config {

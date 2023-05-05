@@ -14,8 +14,7 @@ use tokio::sync::Semaphore;
 async fn main() {
     let config: Config = load_config();
     let m = MultiProgress::new();
-    let max_concurrent_tasks = 5; // You can adjust this value based on your system's capabilities
-    let semaphore = Arc::new(Semaphore::new(max_concurrent_tasks));
+    let semaphore = Arc::new(Semaphore::new(config.max_concurrent_tasks));
     let config: Config = load_config();
     let m = MultiProgress::new();
     let progress_bars: Vec<ProgressBar> = config.servers.iter().map(|_| {
